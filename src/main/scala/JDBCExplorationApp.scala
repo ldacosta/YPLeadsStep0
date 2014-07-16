@@ -43,6 +43,13 @@ object JDBCExplorationApp {
         }
       connOpt.map{ conn =>
         println("OK, we are IN!")
+        val stmt = conn.createStatement()
+        val rsSet = stmt.executeQuery("SELECT COUNT(*) FROM account")
+        if (rsSet.next())
+          println(s"Table 'account' has ${rsSet.getInt(1)} rows")
+        else
+          println("Error fetching row count from table 'account'")
+        stmt.close()
         conn.close()
       }
     }
