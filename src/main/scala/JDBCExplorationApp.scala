@@ -3,6 +3,9 @@
  */
 
 import java.sql.{DriverManager, Connection}
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
+import util.{ Util => LocalUtils }
 
 object JDBCExplorationApp {
 
@@ -44,7 +47,20 @@ object JDBCExplorationApp {
   /**
    * We want to filter the RAM table for activity happening following this filter.
    */
-  private val DATE_FILTER_AS_STRING = "< \"2013-08-01\"" // "> \"2014-03-01\""
+  private val DATE_FILTER_AS_STRING = "> \"2014-04-01\""
+
+  /**
+   * Results will be written here
+   */
+  private val OUTPUT_FILE_NAME = {
+    import java.util.Calendar
+    import java.text.SimpleDateFormat
+
+    val today = Calendar.getInstance().getTime()
+    val format = new SimpleDateFormat("yyyy-MM-dd-hh-mm-ss")
+
+    s"C:\\Users\\ldacost1\\results-${format.format(today)}.txt"
+  }
 
   def main(args: Array[String]) {
 
@@ -56,7 +72,7 @@ object JDBCExplorationApp {
     else {
       val server = "ibdevro.itops.ad.ypg.com"
       val portNumber = 5029
-      val dbName = "ypa_dev"
+      val dbName = "ypa_dev_webfocus"
       val username = "ldcosta1"
       val passwd = params.get("passwd").get // will not fail. See the 'if' above.
       val jdbcURL = s"jdbc:mysql://${server}:${portNumber}/${dbName}"
@@ -81,19 +97,22 @@ object JDBCExplorationApp {
         mkQueryStringForActivities(true, DATE_FILTER_AS_STRING) + " tDiff " +
         "ON tAll.account_key = tDiff.account_key;"
 
-      println(query)
       connOpt.map{ conn =>
         println("OK, we are IN!")
         val stmt = conn.createStatement()
-        val rsSet = stmt.executeQuery(query)
-        if (rsSet.next())
-          println(s"Query successfully executed")
-        else
-          println(s"Query execution failed")
+        val rs = stmt.executeQuery(query)
+        println(s"Query execution finished")
+        val s = s"account_key,account_id, account_name, location_city, location_zip_code, totalCount, perCategoryCount, categoryProportion"
+        LocalUtils.appendToFile(OUTPUT_FILE_NAME, s)
+        while (rs.next()) {
+          val s = s"${rs.getString("account_key")},${rs.getString("account_id")}, ${rs.getString("account_name")}, ${rs.getString("location_city")}, ${rs.getString("location_zip_code")}, ${rs.getString("totalCount")}, ${rs.getString("perCategoryCount")}, ${rs.getString("categoryProportion")}"
+          LocalUtils.appendToFile(OUTPUT_FILE_NAME, s)
+        }
+        println(s"Results written in [${OUTPUT_FILE_NAME}]")
+        rs.close()
         stmt.close()
         conn.close()
       }
     }
   }
-
 }
