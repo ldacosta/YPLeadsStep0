@@ -1,14 +1,13 @@
 package ypleads
 
 import util.{ Util => Util }
-import common.Base.{ constants => constants }
-import common.Base.{ functions => functions }
+import common.{ Base => Base }
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import Util._
-import functions._
-import constants._
+import Base.functions._
+import Base.constants._
 
 
 object DataExplorer extends Serializable {
@@ -188,7 +187,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
 
 
 /*
-val qe = new QueriesExploration(sc)
+val qe = new DataExplorer(sc)
 qe.runAggregationPerHeadingAndDirectory(fromDay = 10, toDay = 12, ramSnapshot = 0)
 qe.runAggregation(10, 12, 0)
  */
