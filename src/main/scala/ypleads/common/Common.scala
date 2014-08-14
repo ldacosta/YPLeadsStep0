@@ -6,7 +6,7 @@ import Util.Levenshtein
 /**
  * Created by LDacost1 on 2014-08-11.
  */
-object Base extends Serializable {
+object Common extends Serializable {
 
   object structures extends Serializable {
     case class RAMRow(accountKey: Long, keywords: String, date: String, headingId: Long, directoryId: Long, refererId: Long, impressionWeight: Double, clickWeight: Double, isMobile: Boolean) {
@@ -21,14 +21,6 @@ object Base extends Serializable {
   }
 
   object constants extends Serializable {
-    val ACCOUNTS_OUTPUT_DIR = "YPA_BD"
-    val ACCOUNTSPARQUETTABLE = s"${ACCOUNTS_OUTPUT_DIR}/caa_accounts.parquet"
-    val RAM_OUTPUT_DIR = "YPA_RAM"
-    val mayParquetFilesPrefix = "deduped_2013_05"
-
-
-    val TMPRAMTABLE = "caa_ram"
-
   }
 
   object functions extends Serializable {

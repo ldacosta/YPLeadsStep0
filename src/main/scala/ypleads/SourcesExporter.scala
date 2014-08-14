@@ -1,15 +1,15 @@
 package ypleads
 
-import common.Base.{ structures => structures }
-import common.Base.{ constants => constants }
-import common.Base.{ functions => functions }
+import common.{ Common => Common }
+import common.DataNomenclature._
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
+import util.{ Util => Util }
+import Util._
 import scala.util.control.Exception._
-import structures._
-import functions._
-import constants._
+import Common.structures._
+import Common.functions._
 
 /**
  * Created by LDacost1 on 2014-08-11.
@@ -29,60 +29,51 @@ object SourcesExporter extends Serializable {
   def saveAllDailyRAMsAsParquetFiles(sc: SparkContext, sqlContext: SQLContext, snapshot: Int): List[String] = { // RAMSnapshot): String = {
     import sqlContext._
 
-    val maySourceOnlineFilesPrefix = "deduped-2013-05"
-    (1 to 31).toList.foldLeft(List[String]()) { (currentList, dayOfMonth) =>
-      try {
-        val sourceFileNamePrefix = "%s-%s".format(maySourceOnlineFilesPrefix, dayOfMonth)
-        val sourceFileName = "/source/ram/%s.csv.lzo".format(sourceFileNamePrefix)
-        val outputNamePrefix = sourceFileNamePrefix.replace("-", "_") // "deduped_2013_05_31"
-        val ONEDAYRAMPARQUETFILE = "%s/%s.parquet".format(RAM_OUTPUT_DIR, outputNamePrefix)
-        val ONEDAYRAMPARQUETFILESAMPLE = "%s/%s_sample.parquet".format(RAM_OUTPUT_DIR, outputNamePrefix)
-
-        val ramForOneDay = sc.newAPIHadoopFile(sourceFileName, classOf[com.hadoop.mapreduce.LzoTextInputFormat], classOf[org.apache.hadoop.io.LongWritable],classOf[org.apache.hadoop.io.Text])
-        val (dataSet, nameOfTable) =
-          (
-            snapshot match {
-              case 0 => (ramForOneDay.sample(false, 0.001, 1), ONEDAYRAMPARQUETFILESAMPLE) // 0.00001 ==> about 400 records
-              case 1 => (ramForOneDay, ONEDAYRAMPARQUETFILE)
-            }
-            /*
-            snapshot match {
-              case COUPLE_OF_HOURS => (ramForOneDay.sample(false, 0.001, 1), ONEDAYRAMTABLESAMPLE) // 0.00001 ==> about 400 records
-              case DAY => (ramForOneDay, ONEDAYRAMTABLE)
-            }
-            */
-            )
-
-
-        val xx = dataSet.map{case(k,actualTxt) => actualTxt}.
-          map(_.toString).
-          map(actualTxt => (actualTxt, actualTxt.split(","))).
-          flatMap{ case (actualTxt, asStringArr) =>
-          try {
-            Some(RAMRow(
-              accountKey = cleanString(asStringArr(2)).toLong,
-              keywords = cleanString(asStringArr(17)),
-              date = cleanString(asStringArr(3)),
-              headingId = cleanString(asStringArr(4)).toLong,
-              directoryId = cleanString(asStringArr(5)).toLong,
-              refererId = cleanString(asStringArr(7)).toLong,
-              impressionWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(12)).toDouble).getOrElse(0.0),
-              clickWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(13)).toDouble).getOrElse(0.0),
-              isMobile = cleanString(asStringArr(15)).toLong == 1
-            ))
-          }
-          catch {
-            case e: Exception =>
-              println(actualTxt)
-              println("Impossible to fetch a row from RAM: array of size %d. msg is this: %s; [2] = %s, [17] = %s, [3] = %s".format(asStringArr.length, e.getMessage, asStringArr(2), asStringArr(17), asStringArr(3)))
-              None
-          }
+    List(true, false).foldLeft(List[String]()) { (currentList, online) =>
+      (1 to 31).toList.foldLeft(currentList) { (currentList, dayOfMonth) =>
+        try {
+          RAM.getSourceFullFileName(year = 2013, month = 5, day = dayOfMonth, online).map { sourceFileName =>
+            RAM.getParquetFullHDFSFileName(year = 2013, month = 5, dayOfMonth, fullDay = (snapshot == 1), online).map { nameOfTable =>
+              val ramForOneDay = sc.newAPIHadoopFile(sourceFileName, classOf[com.hadoop.mapreduce.LzoTextInputFormat], classOf[org.apache.hadoop.io.LongWritable], classOf[org.apache.hadoop.io.Text])
+              val dataSet =
+                (
+                  snapshot match {
+                    case 0 => ramForOneDay.sample(false, 0.001, 1) // 0.00001 ==> about 400 records
+                    case 1 => ramForOneDay
+                  }
+                  )
+              val xx = dataSet.map { case (k, actualTxt) => actualTxt}.
+                map(_.toString).
+                map(actualTxt => (actualTxt, actualTxt.split(","))).
+                flatMap { case (actualTxt, asStringArr) =>
+                try {
+                  Some(RAMRow(
+                    accountKey = cleanString(asStringArr(2)).toLong,
+                    keywords = cleanString(asStringArr(17)),
+                    date = cleanString(asStringArr(3)),
+                    headingId = cleanString(asStringArr(4)).toLong,
+                    directoryId = cleanString(asStringArr(5)).toLong,
+                    refererId = cleanString(asStringArr(7)).toLong,
+                    impressionWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(12)).toDouble).getOrElse(0.0),
+                    clickWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(13)).toDouble).getOrElse(0.0),
+                    isMobile = cleanString(asStringArr(15)).toLong == 1
+                  ))
+                }
+                catch {
+                  case e: Exception =>
+                    println(actualTxt)
+                    println("Impossible to fetch a row from RAM: array of size %d. msg is this: %s; [2] = %s, [17] = %s, [3] = %s".format(asStringArr.length, e.getMessage, asStringArr(2), asStringArr(17), asStringArr(3)))
+                    None
+                }
+              }
+              xx.saveAsParquetFile(nameOfTable)
+              nameOfTable :: currentList
+            }.getOrElse(currentList)
+          }.getOrElse(currentList)
         }
-        xx.saveAsParquetFile(nameOfTable)
-        nameOfTable :: currentList
-      }
-      catch {
-        case e: Exception => currentList
+        catch {
+          case e: Exception => currentList
+        }
       }
     }
   }
@@ -117,8 +108,8 @@ object SourcesExporter extends Serializable {
           None
       }
     }
-    accounts.saveAsParquetFile(ACCOUNTSPARQUETTABLE)
-    ACCOUNTSPARQUETTABLE
+    accounts.saveAsParquetFile(Accounts.ACCOUNTSPARQUETTABLE)
+    Accounts.ACCOUNTSPARQUETTABLE
   }
 
   /**

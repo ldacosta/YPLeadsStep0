@@ -13,6 +13,47 @@ object Util extends Serializable {
   implicit def bool2int(b:Boolean) = if (b) 1 else 0
 
   /**
+   *
+   * @param value
+   * @param what
+   * @note Things are done like this and NOT with en enumeration of some kind
+   *       because of https://issues.apache.org/jira/browse/SPARK-2330 and https://issues.apache.org/jira/browse/SPARK-1199
+   *       which block the correct functioning of enumerations in the Spark Shell.
+   * @return a String with an error message, in case of failure. None otherwise.
+   */
+  def verifyDateComponent(value: Int, what: String): Option[String] = {
+    what.trim.substring(0, 2) match {
+      case "YY" => None // year can never be wrong, basically
+      case "MM" =>
+        if ((value < 1) || (value > 12)) Some(s"Month must be in [1,12]: currently ${value}")
+        else None
+      case "DD" =>
+        if ((value < 1) || (value > 31)) Some(s"Day must be in [1,31]: currently ${value}")
+        else None
+      case "hh" =>
+        if ((value < 1) || (value > 24)) Some(s"Hour of day must be in [1,24]: currently ${value}")
+        else None
+      case "mm" =>
+        if ((value < 1) || (value > 60)) Some(s"Minutes of the hour must be in [1,60]: currently ${value}")
+        else None
+      case "ss" =>
+        if ((value < 1) || (value > 60)) Some(s"Seconds of the minute must be in [1,12]: currently ${value}")
+        else None
+      case _ => Some(s"I don't understand what componet of a date ${what} is")
+    }
+  }
+
+  /**
+   *
+   * @param dayOrMonth
+   * @return
+   */
+  def getIntAsString(dayOrMonth: Int, minStringLength: Int): String = {
+    val s = dayOrMonth.toString
+    (1 to (minStringLength - s.length)).toList.foldLeft(""){ (r, _) => "0" + r } + s
+  }
+
+  /**
    * Returns current date as a String.
    * @param dateFormat
    * @return
