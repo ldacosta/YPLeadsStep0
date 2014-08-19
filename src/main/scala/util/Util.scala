@@ -3,6 +3,8 @@ package util
 import java.io.{PrintWriter, FileWriter}
 
 import org.apache.spark.sql.SQLContext
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs._
 
 /**
  * Several Utilities.
@@ -11,6 +13,36 @@ object Util extends Serializable {
   import scala.language.implicitConversions
 
   implicit def bool2int(b:Boolean) = if (b) 1 else 0
+
+  object HDFS {
+    private lazy val conf = new Configuration()
+    private lazy val fs = FileSystem.get(conf)
+
+    def fileExists(fileName: String): Boolean = {
+      try {
+        fs.exists(new Path(fileName))
+      }
+      catch {
+        case e: Exception => {
+          println(s"Check of file ${fileName}: ${e.getMessage}")
+          false
+        }
+      }
+    }
+
+    def deleteFile(fileName: String) = {
+      try {
+        fs.delete(new Path(fileName), false)
+      }
+      catch {
+        case e: Exception => {
+          println(s"Check of file ${fileName}: ${e.getMessage}")
+          false
+        }
+      }
+    }
+
+  }
 
   /**
    *
