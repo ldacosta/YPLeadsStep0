@@ -11,9 +11,6 @@ import org.joda.time.DateTime
  * Several Utilities.
  */
 object Util extends Serializable {
-  import scala.language.implicitConversions
-
-  implicit def bool2int(b:Boolean) = if (b) 1 else 0
 
   object Date {
     def allDaysStartingIn(aDate: DateTime): Stream[DateTime] = Stream.cons(aDate, allDaysStartingIn(aDate.plusDays(1)))

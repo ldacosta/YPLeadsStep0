@@ -139,10 +139,9 @@ class DataExplorer(sc: SparkContext) extends Serializable {
     val writableResults = headDirQueriesAndNames.map { case (headAndDir, listOfQueriesAndNames) =>
       val (queriesByName, queriesEMPTY, queriesNONE) =
         listOfQueriesAndNames.foldLeft((0:Long, 0:Long, 0:Long)) { case ((byName, empty, none), queryAndName) =>
-          // implicit boolean -> int conversion defined in Util
-          (byName + isCloseEnough(queryAndName.query, queryAndName.name),
-            empty + queryAndName.query.trim.isEmpty,
-            none + (queryAndName.query.trim.toUpperCase == "NONE"))
+          (byName + { if (isCloseEnough(queryAndName.query, queryAndName.name)) 1 else 0 },
+            empty + { if (queryAndName.query.trim.isEmpty) 1 else 0 },
+            none + { if (queryAndName.query.trim.toUpperCase == "NONE") 1 else 0 })
         }
       aggregatedResult(heading = headAndDir.heading, directory = headAndDir.directory, queriesTotal = listOfQueriesAndNames.length, queriesByName = queriesByName, queriesEmpty = queriesEMPTY, queriesNONE = queriesNONE)
     }
