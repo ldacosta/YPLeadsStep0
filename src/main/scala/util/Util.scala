@@ -40,7 +40,7 @@ object Util extends Serializable {
       }
     }
 
-    def deleteFile(fileName: String) = {
+    def deleteFile(fileName: String): Boolean = {
       try {
         fs.delete(new Path(fileName), false)
       }
