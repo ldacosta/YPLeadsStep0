@@ -5,6 +5,7 @@ import java.io.{PrintWriter, FileWriter}
 import org.apache.spark.sql.SQLContext
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
+import org.joda.time.DateTime
 
 /**
  * Several Utilities.
@@ -13,6 +14,15 @@ object Util extends Serializable {
   import scala.language.implicitConversions
 
   implicit def bool2int(b:Boolean) = if (b) 1 else 0
+
+  object Date {
+    def allDaysStartingIn(aDate: DateTime): Stream[DateTime] = Stream.cons(aDate, allDaysStartingIn(aDate.plusDays(1)))
+
+    def getAllDays(fromDate: DateTime, toDate: DateTime): Stream[DateTime] = {
+      Date.allDaysStartingIn(fromDate.withHourOfDay(1).withMinuteOfHour(0).withSecondOfMinute(0)).
+        takeWhile(_.isBefore(toDate.withHourOfDay(1).withMinuteOfHour(0).withSecondOfMinute(1)))
+    }
+  }
 
   object HDFS {
     private lazy val conf = new Configuration()
@@ -42,37 +52,6 @@ object Util extends Serializable {
       }
     }
 
-  }
-
-  /**
-   *
-   * @param value
-   * @param what
-   * @note Things are done like this and NOT with en enumeration of some kind
-   *       because of https://issues.apache.org/jira/browse/SPARK-2330 and https://issues.apache.org/jira/browse/SPARK-1199
-   *       which block the correct functioning of enumerations in the Spark Shell.
-   * @return a String with an error message, in case of failure. None otherwise.
-   */
-  def verifyDateComponent(value: Int, what: String): Option[String] = {
-    what.trim.substring(0, 2) match {
-      case "YY" => None // year can never be wrong, basically
-      case "MM" =>
-        if ((value < 1) || (value > 12)) Some(s"Month must be in [1,12]: currently ${value}")
-        else None
-      case "DD" =>
-        if ((value < 1) || (value > 31)) Some(s"Day must be in [1,31]: currently ${value}")
-        else None
-      case "hh" =>
-        if ((value < 1) || (value > 24)) Some(s"Hour of day must be in [1,24]: currently ${value}")
-        else None
-      case "mm" =>
-        if ((value < 1) || (value > 60)) Some(s"Minutes of the hour must be in [1,60]: currently ${value}")
-        else None
-      case "ss" =>
-        if ((value < 1) || (value > 60)) Some(s"Seconds of the minute must be in [1,12]: currently ${value}")
-        else None
-      case _ => Some(s"I don't understand what componet of a date ${what} is")
-    }
   }
 
   /**

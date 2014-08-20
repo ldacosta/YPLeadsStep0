@@ -1,5 +1,6 @@
 package ypleads
 
+import org.joda.time.DateTime
 import util.{ Util => Util }
 import common.{ Common => Common }
 import common.DataNomenclature._
@@ -29,21 +30,25 @@ class DataExplorer(sc: SparkContext) extends Serializable {
   import sqlContext._
 
   // on init:
-  registerParquetTables()
+  registerParquetTables((new DateTime).withYear(2013).withMonthOfYear(1).withDayOfMonth(1), (new DateTime).withYear(2013).withMonthOfYear(12).withDayOfMonth(31))
 
   /**
    *
    */
-  private def registerParquetTables() = {
+  private def registerParquetTables(fromDate: DateTime, toDate: DateTime) = {
     // accounts
     SparkSQL.parquetTable2TempTable(sqlContext, Accounts.ACCOUNTSPARQUETTABLE, Accounts.TMPACCOUNTSTABLE)
     //
     List(false, true).foreach { online =>
-      (1 to 31).foreach{ dayOfMonth =>
+      Date.getAllDays(fromDate, toDate).toList.foreach{ dateToProcess =>
+        val theYear = dateToProcess.getYear
+        val theMonth = dateToProcess.getMonthOfYear
+        val dayOfMonth = dateToProcess.getDayOfMonth
         List(true, false).foreach { createJustASnapshot =>
           try {
-            RAM.getParquetFullHDFSFileName(year = 2013, month = 5, dayOfMonth, fullDay = !createJustASnapshot, online).map { currentRAMParquetFile =>
-              RAM.getHDFSTableName(year = 2013, month = 5, day = dayOfMonth, fullDay = !createJustASnapshot, online).map { tmpRAMTable =>
+            val theDate = (new DateTime).withYear(theYear).withMonthOfYear(theMonth).withDayOfMonth(dayOfMonth)
+            RAM.getParquetFullHDFSFileName(theDate, fullDay = !createJustASnapshot, online).map { currentRAMParquetFile =>
+              RAM.getHDFSTableName(theDate, fullDay = !createJustASnapshot, online).map { tmpRAMTable =>
                 println("Converting from [%s] to [%s]".format(currentRAMParquetFile, tmpRAMTable))
                 SparkSQL.parquetTable2TempTable(sqlContext, currentRAMParquetFile, tmpRAMTable)
               }
@@ -60,21 +65,21 @@ class DataExplorer(sc: SparkContext) extends Serializable {
   }
 
 
-  private def getAllRAMTableNames(fromDay: Int, toDay: Int, ramSnapshot: Int, online: Boolean): List[String] = {
-    (fromDay to toDay).toList.foldLeft(List[String]()) { (aList, dayOfMonth) =>
-      RAM.getHDFSTableName(year = 2013, month = 5, day = dayOfMonth, fullDay = (ramSnapshot == 1), online).map(List(_)).getOrElse(List[String]()) ++ aList
+  private def getAllRAMTableNames(fromDate: DateTime, toDate: DateTime, ramSnapshot: Int, online: Boolean): List[String] = {
+    Date.getAllDays(fromDate, toDate).toList.foldLeft(List[String]()) { (aList, theDate) =>
+      RAM.getHDFSTableName(theDate, fullDay = (ramSnapshot == 1), online).map(List(_)).getOrElse(List[String]()) ++ aList
     }
   }
 
-  private def getQueriesForHeadingMarkets(accountsTableName: String, fromDay: Int, toDay: Int, ramSnapshot: Int, online: Boolean): List[String] = {
-    getAllRAMTableNames(fromDay, toDay, ramSnapshot, online).map{ tmpRAMTable =>
+  private def getQueriesForHeadingMarkets(accountsTableName: String, fromDate: DateTime, toDate: DateTime, ramSnapshot: Int, online: Boolean): List[String] = {
+    getAllRAMTableNames(fromDate, toDate, ramSnapshot, online).map{ tmpRAMTable =>
       "SELECT %s.headingId, %s.directoryId, %s.keywords, %s.accountName FROM    %s              JOIN %s         ON %s.accountKey = %s.accountKey".
         format(tmpRAMTable, tmpRAMTable,    tmpRAMTable, accountsTableName,   accountsTableName, tmpRAMTable,     tmpRAMTable,     accountsTableName)
     }
   }
 
-  private def getQueriesForMerchantsAggr(accountsTableName: String, fromDay: Int, toDay: Int, ramSnapshot: Int, online: Boolean): List[String] = {
-    getAllRAMTableNames(fromDay, toDay, ramSnapshot, online).map{ tmpRAMTable =>
+  private def getQueriesForMerchantsAggr(accountsTableName: String, fromDate: DateTime, toDate: DateTime, ramSnapshot: Int, online: Boolean): List[String] = {
+    getAllRAMTableNames(fromDate, toDate, ramSnapshot, online).map{ tmpRAMTable =>
       // NB: for some reason when I try to do GROUP BY accountKey, date IT BLOCKS. So I have to do it by code
       s"SELECT ${accountsTableName}.accountKey, ${accountsTableName}.accountName, ${accountsTableName}.accountId,  ${tmpRAMTable}.date,  ${tmpRAMTable}.keywords " +
         s"FROM ${accountsTableName} JOIN ${tmpRAMTable} ON ${accountsTableName}.accountKey = ${tmpRAMTable}.accountKey " // +
@@ -106,7 +111,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
    * Assumes that the proper tables (RAM and Accounts) have been properly created with this SQL context.
    *
    */
-  def runAggregationPerHeadingAndDirectory(fromDay: Int, toDay: Int, ramSnapshot: Int, online: Boolean) = {
+  def runAggregationPerHeadingAndDirectory(fromDate: DateTime, toDate: DateTime, ramSnapshot: Int, online: Boolean) = {
 
     case class headingAndDirectory(heading: Long, directory: Long)
     case class queryAndBusinessName(query: String, name: String)
@@ -119,7 +124,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
     val outputDir = "results_ypaStep0/headingMarket/%s".format(nowAsString())
     println("RESULTS FROM THIS RUN WILL BE STORED IN hdfs'[%s]".format(outputDir))
 
-    val allData = getDataInAnRDD(getQueriesForHeadingMarkets(Accounts.TMPACCOUNTSTABLE, fromDay, toDay, ramSnapshot, online))
+    val allData = getDataInAnRDD(getQueriesForHeadingMarkets(Accounts.TMPACCOUNTSTABLE, fromDate, toDate, ramSnapshot, online))
     // NB: fields returned are as defined in <getQueriesForHeadingMarkets>
     // last time I checked it was: headingId, directoryId, keywords, accountName
     // (1) let's group by heading/directory
@@ -146,7 +151,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
   }
 
 
-  def runAggregation(fromDay: Int, toDay: Int, ramSnapshot: Int, online: Boolean) = {
+  def runAggregation(fromDate: DateTime, toDate: DateTime, ramSnapshot: Int, online: Boolean) = {
     case class infoToReport(accountKey: Long, accountName: String, accountId: String, queriesTotal: Long, queriesByName: Long, queriesEmpty: Long, queriesNONE: Long) {
       override def toString = {
         "%d\t%s\t%s\t%d\t%d\t%d\t%d".format(accountKey, accountName, accountId, queriesTotal, queriesByName, queriesEmpty, queriesNONE)
@@ -156,7 +161,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
     val outputDir = "results_ypaStep0/merchant/%s".format(nowAsString())
     println("RESULTS FROM THIS RUN WILL BE STORED IN hdfs'[%s]".format(outputDir))
 
-    val allData = getDataInAnRDD(getQueriesForMerchantsAggr(Accounts.TMPACCOUNTSTABLE, fromDay, toDay, ramSnapshot, online))
+    val allData = getDataInAnRDD(getQueriesForMerchantsAggr(Accounts.TMPACCOUNTSTABLE, fromDate, toDate, ramSnapshot, online))
     // NB: fields returned are as defined in <getQueriesForMerchantsAggr>
     // First I group by accountKey + date ==> decomposition of event is aggregated
     case class detailedInfo(accountKey: Long, accountName: String, accountId: String, queries: List[String])

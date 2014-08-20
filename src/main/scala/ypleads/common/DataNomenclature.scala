@@ -1,5 +1,6 @@
 package ypleads.common
 
+import org.joda.time.DateTime
 import util.{ Util => Util }
 import Util._
 
@@ -31,18 +32,15 @@ object DataNomenclature extends Serializable {
      * @return None if input parameters are invalid. Some with the result, otherwise.
      *
      */
-    def getSourceRAMDataName(year: Int, month: Int, day: Int, online: Boolean): Option[String] = {
-      val allErrorsInDate = List(verifyDateComponent(year, "YY"), verifyDateComponent(month, "MM"), verifyDateComponent(day, "DD")).flatten
-      if (!allErrorsInDate.isEmpty) { println(allErrorsInDate.mkString("; ")); None }
+    def getSourceRAMDataName(date: DateTime, online: Boolean): Option[String] = {
+      // I only want to provide these files for certain years:
+      val year = date.getYear
+      if ((year >= 2011) && (year <= 2014)) {
+        Some(s"${if (online) "deduped-" else "API_DTA_D_"}${year}-${getIntAsString(date.getMonthOfYear,2)}-${getIntAsString(date.getDayOfMonth,2)}")
+      }
       else {
-        // I only want to provide these files for certain years:
-        if ((year >= 2011) && (year <= 2014)) {
-          Some(s"${if (online) "deduped-" else "API_DTA_D_"}${year}-${getIntAsString(month,2)}-${getIntAsString(day,2)}")
-        }
-        else {
-          println(s"We only accept years in [2011,2014]. Currently = ${year}")
-          None
-        }
+        println(s"We only accept years in [2011,2014]. Currently = ${year}")
+        None
       }
     }
 
@@ -50,24 +48,24 @@ object DataNomenclature extends Serializable {
      * Gets the "central" name of a day of data of the GENERATED RAM tables.
      * @return None if input parameters are invalid. Some with the result, otherwise.
      */
-    def getDstRAMDataName(year: Int, month: Int, day: Int, online: Boolean): Option[String] = {
-      getSourceRAMDataName(year, month, day, online).map(srcName => srcName.replace("-", "_"))
+    def getDstRAMDataName(date: DateTime, online: Boolean): Option[String] = {
+      getSourceRAMDataName(date, online).map(srcName => srcName.replace("-", "_"))
     }
 
-    def getSourceFullFileName(year: Int, month: Int, day: Int, online: Boolean): Option[String] = {
-      getSourceRAMDataName(year, month, day, online).map(srcName => s"${SOURCE_DIR}/${srcName}.csv.lzo")
+    def getSourceFullFileName(date: DateTime, online: Boolean): Option[String] = {
+      getSourceRAMDataName(date, online).map(srcName => s"${SOURCE_DIR}/${srcName}.csv.lzo")
     }
 
-    private def getParquetHDFSFileName(year: Int, month: Int, day: Int, fullDay: Boolean, withExtension: Boolean, online: Boolean): Option[String] = {
-      getDstRAMDataName(year, month, day, online).map(dstName => s"${dstName}${if (fullDay) "_sample" else ""}${if (withExtension) ".parquet" else ""}")
+    private def getParquetHDFSFileName(date: DateTime, fullDay: Boolean, withExtension: Boolean, online: Boolean): Option[String] = {
+      getDstRAMDataName(date, online).map(dstName => s"${dstName}${if (fullDay) "_sample" else ""}${if (withExtension) ".parquet" else ""}")
     }
 
-    def getParquetFullHDFSFileName(year: Int, month: Int, day: Int, fullDay: Boolean, online: Boolean): Option[String] = {
-      getParquetHDFSFileName(year, month, day, fullDay, withExtension = true, online).map (fileName => s"${PARQUET_DIR}/${fileName}")
+    def getParquetFullHDFSFileName(date: DateTime, fullDay: Boolean, online: Boolean): Option[String] = {
+      getParquetHDFSFileName(date, fullDay, withExtension = true, online).map (fileName => s"${PARQUET_DIR}/${fileName}")
     }
 
-    def getHDFSTableName(year: Int, month: Int, day: Int, fullDay: Boolean, online: Boolean): Option[String] = {
-      getParquetHDFSFileName(year, month, day, fullDay, withExtension = false, online).map (fileName => s"${TMPRAMTABLEPREFIX}_${fileName}")
+    def getHDFSTableName(date: DateTime, fullDay: Boolean, online: Boolean): Option[String] = {
+      getParquetHDFSFileName(date, fullDay, withExtension = false, online).map (fileName => s"${TMPRAMTABLEPREFIX}_${fileName}")
     }
 
   }

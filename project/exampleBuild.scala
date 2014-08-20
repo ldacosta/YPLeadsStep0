@@ -21,6 +21,7 @@ object exampleBuild extends Build {
         Libraries.sparkAssembly2,
         Libraries.sparkSQL,
         Libraries.hadoopGPLCompression,
+        Libraries.scalaTime,
         Libraries.hadoopCore,
         Libraries.specs2,
         Libraries.mysqlConnector,

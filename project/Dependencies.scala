@@ -25,6 +25,8 @@ object Dependencies {
     val sparkAssembly2 = "org.apache.spark" % "spark-assembly_2.10" % "1.0.0-cdh5.1.0"
     val sparkSQL = "org.apache.spark" % "spark-sql_2.10" % "1.0.2"
     val hadoopGPLCompression = "com.hadoop.compression" % "hadoop-gpl-compression" % "0.1.0"
+    // https://github.com/nscala-time/nscala-time:
+    val scalaTime = "com.github.nscala-time" %% "nscala-time" % "1.2.0"
 
     val mysqlConnector = "mysql" % "mysql-connector-java" % "5.1.12"
     // Scala (test only)
