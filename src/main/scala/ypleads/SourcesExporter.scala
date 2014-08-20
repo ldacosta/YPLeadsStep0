@@ -72,8 +72,8 @@ object SourcesExporter extends Serializable {
                       try {
                         Some(RAMRow(
                           accountKey = cleanString(asStringArr(2)).toLong,
-                          keywords = cleanString(asStringArr(17)),
-                          date = cleanString(asStringArr(3)),
+                          keywords = asStringArr(17),
+                          date = asStringArr(3),
                           headingId = cleanString(asStringArr(4)).toLong,
                           directoryId = cleanString(asStringArr(5)).toLong,
                           refererId = cleanString(asStringArr(7)).toLong,

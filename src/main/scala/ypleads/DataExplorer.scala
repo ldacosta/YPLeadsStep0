@@ -9,6 +9,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.rdd.RDD
 import Common.functions._
+import Common.structures._
 import Util._
 
 import scala.util.control.Exception._
@@ -114,7 +115,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
   def runAggregationPerHeadingAndDirectory(fromDate: DateTime, toDate: DateTime, ramSnapshot: Int, online: Boolean) = {
 
     case class headingAndDirectory(heading: Long, directory: Long)
-    case class queryAndBusinessName(query: String, name: String)
+    case class queryAndBusinessName(query: CleanString, name: CleanString)
     case class aggregatedResult(heading: Long, directory: Long, queriesTotal: Long, queriesByName: Long, queriesEmpty: Long, queriesNONE: Long) {
       override def toString = {
         "%d\t%d\t%d\t%d\t%d\t%d".format(heading, directory, queriesTotal, queriesByName, queriesEmpty, queriesNONE)
@@ -133,7 +134,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
     val headDirQueriesAndNames = allDataPerAccount.map {
       case (headAndDir, rowsWithData) =>
         (headingAndDirectory(heading = headAndDir._1, directory = headAndDir._2),
-          rowsWithData.map{r => queryAndBusinessName(query = cleanString(r.getString(2)), name = cleanString(r.getString(3)))}.toList)
+          rowsWithData.map{r => queryAndBusinessName(query = r.getString(2), name = r.getString(3))}.toList)
     }
     // (3) group and count, man!
     val writableResults = headDirQueriesAndNames.map { case (headAndDir, listOfQueriesAndNames) =>
@@ -151,7 +152,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
 
 
   def runAggregation(fromDate: DateTime, toDate: DateTime, ramSnapshot: Int, online: Boolean) = {
-    case class infoToReport(accountKey: Long, accountName: String, accountId: String, queriesTotal: Long, queriesByName: Long, queriesEmpty: Long, queriesNONE: Long) {
+    case class infoToReport(accountKey: Long, accountName: CleanString, accountId: CleanString, queriesTotal: Long, queriesByName: Long, queriesEmpty: Long, queriesNONE: Long) {
       override def toString = {
         "%d\t%s\t%s\t%d\t%d\t%d\t%d".format(accountKey, accountName, accountId, queriesTotal, queriesByName, queriesEmpty, queriesNONE)
       }
@@ -165,7 +166,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
     // First I group by accountKey + date ==> decomposition of event is aggregated
     case class detailedInfo(accountKey: Long, accountName: String, accountId: String, queries: List[String])
     val keysNamesAndHowManyKeywords: RDD[infoToReport] = allData.
-      groupBy(aRow => (aRow.getLong(0), cleanString(aRow.getString(1)), cleanString(aRow.getString(2)), cleanString(aRow.getString(3)))).
+      groupBy(aRow => (aRow.getLong(0), aRow.getString(1), aRow.getString(2), aRow.getString(3))).
       // at this point we have a list of data that looks like this:
       // (((key1, name1, id1, DATE1), List(QUERY1, QUERY1, QUERY1)), ((key1, name1, id1, DATE2), List(QUERY2, QUERY2, QUERY2)), ((key2, name2, id2, DATE3), List(QUERY3, QUERY3, QUERY3)), ...)
       // in other words: for a given date, the query is *always* the same
@@ -188,19 +189,6 @@ class DataExplorer(sc: SparkContext) extends Serializable {
         queriesEmpty = d.queries.filter(aQuery => (aQuery.trim == "")).length,
         queriesNONE = d.queries.filter(aQuery => (aQuery.trim.toUpperCase == "NONE")).length)
     }
-    /*
-    val keysNamesAndHowManyKeywords: RDD[infoToReport] = allData.
-      groupBy(aRow => (aRow.getLong(0), cleanString(aRow.getString(1)), cleanString(aRow.getString(2)), cleanString(aRow.getString(3)))).
-      map{case ((accountKey,accountName,accountId,theDate), allQueries) => detailedInfo(accountKey, accountName, accountId, queries = allQueries.map(aQuery => aQuery(4).toString).toList)}.
-      map{d =>
-        infoToReport(
-          accountKey = d.accountKey, accountName = d.accountName, accountId = d.accountId,
-          queriesTotal = d.queries.length,
-          queriesByName = d.queries.filter(aQuery => isCloseEnough(aQuery, d.accountName)).length,
-          queriesEmpty = d.queries.filter(aQuery => (aQuery.trim == "")).length,
-          queriesNONE = d.queries.filter(aQuery => (aQuery.trim.toUpperCase == "NONE")).length)
-      }
-      */
     keysNamesAndHowManyKeywords.saveAsTextFile(outputDir)
     println("Output written in %s".format(outputDir))
   }
@@ -208,7 +196,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
   /**
    *
    */
-  case class RAMEntryRaw(account_key: Long, directory_code: Long, impressionsAsString: String, clicksAsString: String)
+  case class RAMEntryRaw(account_key: Long, directory_code: Long, impressionsAsString: CleanString, clicksAsString: CleanString)
   case class AggregationResult(account_id: String, account_key: Long, directory_code: Long, impressions: Long, clicks: Long) {
     override def toString = {
       s"${account_id}\t${account_key}\t${directory_code}\t${impressions}\t${clicks})"
@@ -226,7 +214,7 @@ class DataExplorer(sc: SparkContext) extends Serializable {
     val rawEntries: RDD[RAMEntryRaw] =
       sc.textFile("/source/ram/export_ram_2012-11.csv")
         .map(_.split(";"))
-        .map(p => RAMEntryRaw(account_key = cleanString(p(0).trim).toLong, directory_code = cleanString(p(5).trim).toLong, impressionsAsString = cleanString(p(12).trim), clicksAsString = cleanString(p(13).trim)))
+        .map(p => RAMEntryRaw(account_key = cleanString(p(0).trim).toLong, directory_code = cleanString(p(5).trim).toLong, impressionsAsString = p(12).trim, clicksAsString = p(13).trim))
     val southShoreRAM = "caa_ram_southshore_nov2012"
     rawEntries.registerAsTable(s"${southShoreRAM}")
     //

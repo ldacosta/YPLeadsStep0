@@ -9,7 +9,7 @@ import Util.Levenshtein
 object Common extends Serializable {
 
   object structures extends Serializable {
-    case class RAMRow(accountKey: Long, keywords: String, date: String, headingId: Long, directoryId: Long, refererId: Long, impressionWeight: Double, clickWeight: Double, isMobile: Boolean) {
+    case class RAMRow(accountKey: Long, keywords: CleanString, date: CleanString, headingId: Long, directoryId: Long, refererId: Long, impressionWeight: Double, clickWeight: Double, isMobile: Boolean) {
       override def toString = {
         "[accountKey: '%s', keywords: '%s', date: '%s', headingId: %d, directoryId: %d, refererId: %d, isMobile: '%s', impressions: '%s', clicks: '%s']".
           format(accountKey,        keywords,      date,     headingId,         directoryId,   refererId, { if (isMobile) "YES" else "NO" }, impressionWeight, clickWeight)
@@ -18,6 +18,12 @@ object Common extends Serializable {
 
     case class anAccount(accountKey: Long, accountId: String, accountName: String)
 
+    case class CleanString(s: String) {
+      val value: String = functions.cleanString(s)
+    }
+
+    implicit def cleanString2String(cs: CleanString) = cs.value
+    implicit def string2CleanString(s: String) = CleanString(s)
   }
 
   object constants extends Serializable {
