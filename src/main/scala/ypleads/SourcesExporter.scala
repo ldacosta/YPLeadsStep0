@@ -41,64 +41,65 @@ object SourcesExporter extends Serializable {
 
     import sqlContext._
 
-    if (!fromDate.isBefore(toDate)) {
-      println(s"ERROR :: Requested data FROM ${fromDate} to ${toDate}")
-      List.empty
-    }
-    else {
-      List(true, false).foldLeft(List[String]()) { (currentList, online) =>
-        Date.getAllDays(fromDate, toDate).toList.foldLeft(currentList) { (currentList, aDateToProcess) =>
-          try {
-            RAM.getSourceFullFileName(aDateToProcess, online).map { sourceFileName =>
-              if (!HDFS.fileExists(sourceFileName))
-                currentList
-              else {
-                RAM.getParquetFullHDFSFileName(aDateToProcess, fullDay = (snapshot == 1), online).map { nameOfTable =>
-                  if (!force && HDFS.fileExists(nameOfTable))
-                    currentList
-                  else {
-                    val ramForOneDay = sc.newAPIHadoopFile(sourceFileName, classOf[com.hadoop.mapreduce.LzoTextInputFormat], classOf[org.apache.hadoop.io.LongWritable], classOf[org.apache.hadoop.io.Text])
-                    val dataSet =
-                      (
-                        snapshot match {
-                          case 0 => ramForOneDay.sample(false, 0.001, 1) // 0.00001 ==> about 400 records
-                          case 1 => ramForOneDay
-                        }
-                        )
-                    val xx = dataSet.map { case (k, actualTxt) => actualTxt}.
-                      map(_.toString).
-                      map(actualTxt => (actualTxt, actualTxt.split(","))).
-                      flatMap { case (actualTxt, asStringArr) =>
-                      try {
-                        Some(RAMRow(
-                          accountKey = cleanString(asStringArr(2)).toLong,
-                          keywords = asStringArr(17),
-                          date = asStringArr(3),
-                          headingId = cleanString(asStringArr(4)).toLong,
-                          directoryId = cleanString(asStringArr(5)).toLong,
-                          refererId = cleanString(asStringArr(7)).toLong,
-                          impressionWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(12)).toDouble).getOrElse(0.0),
-                          clickWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(13)).toDouble).getOrElse(0.0),
-                          isMobile = cleanString(asStringArr(15)).toLong == 1
-                        ))
+    val allDaysToProcess = Date.getAllDays(fromDate, toDate)
+    println(s"saveAllDailyRAMsAsParquetFiles: processing from ${fromDate} to ${toDate}, a total of ${allDaysToProcess.length} days.")
+    List(true, false).foldLeft(List[String]()) { (currentList, online) =>
+      allDaysToProcess.toList.foldLeft(currentList) { (currentList, aDateToProcess) =>
+        try {
+          RAM.getSourceFullFileName(aDateToProcess, online).map { sourceFileName =>
+            if (!HDFS.fileExists(sourceFileName)) {
+              println(s"Source file for ${aDateToProcess} does not exist. Ignoring.")
+              currentList
+            }
+            else {
+              RAM.getParquetFullHDFSFileName(aDateToProcess, fullDay = (snapshot == 1), online).map { nameOfTable =>
+                if (!force && HDFS.fileExists(nameOfTable)) {
+                  println(s"Target file for ${aDateToProcess} (${nameOfTable}) exists and NOT forcing. Ignoring.")
+                  currentList
+                }
+                else {
+                  println(s"Generating ${nameOfTable} for ${aDateToProcess}")
+                  val ramForOneDay = sc.newAPIHadoopFile(sourceFileName, classOf[com.hadoop.mapreduce.LzoTextInputFormat], classOf[org.apache.hadoop.io.LongWritable], classOf[org.apache.hadoop.io.Text])
+                  val dataSet =
+                    (
+                      snapshot match {
+                        case 0 => ramForOneDay.sample(false, 0.001, 1) // 0.00001 ==> about 400 records
+                        case 1 => ramForOneDay
                       }
-                      catch {
-                        case e: Exception =>
-                          println(actualTxt)
-                          println("Impossible to fetch a row from RAM: array of size %d. msg is this: %s; [2] = %s, [17] = %s, [3] = %s".format(asStringArr.length, e.getMessage, asStringArr(2), asStringArr(17), asStringArr(3)))
-                          None
-                      }
+                      )
+                  val xx = dataSet.map { case (k, actualTxt) => actualTxt}.
+                    map(_.toString).
+                    map(actualTxt => (actualTxt, actualTxt.split(","))).
+                    flatMap { case (actualTxt, asStringArr) =>
+                    try {
+                      Some(RAMRow(
+                        accountKey = cleanString(asStringArr(2)).toLong,
+                        keywords = asStringArr(17),
+                        date = asStringArr(3),
+                        headingId = cleanString(asStringArr(4)).toLong,
+                        directoryId = cleanString(asStringArr(5)).toLong,
+                        refererId = cleanString(asStringArr(7)).toLong,
+                        impressionWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(12)).toDouble).getOrElse(0.0),
+                        clickWeight = (catching(classOf[Exception]) opt cleanString(asStringArr(13)).toDouble).getOrElse(0.0),
+                        isMobile = cleanString(asStringArr(15)).toLong == 1
+                      ))
                     }
-                    xx.saveAsParquetFile(nameOfTable)
-                    nameOfTable :: currentList
+                    catch {
+                      case e: Exception =>
+                        println(actualTxt)
+                        println("Impossible to fetch a row from RAM: array of size %d. msg is this: %s; [2] = %s, [17] = %s, [3] = %s".format(asStringArr.length, e.getMessage, asStringArr(2), asStringArr(17), asStringArr(3)))
+                        None
+                    }
                   }
-                }.getOrElse(currentList)
-              }
-            }.getOrElse(currentList)
-          }
-          catch {
-            case e: Exception => currentList
-          }
+                  xx.saveAsParquetFile(nameOfTable)
+                  nameOfTable :: currentList
+                }
+              }.getOrElse(currentList)
+            }
+          }.getOrElse(currentList)
+        }
+        catch {
+          case e: Exception => currentList
         }
       }
     }
