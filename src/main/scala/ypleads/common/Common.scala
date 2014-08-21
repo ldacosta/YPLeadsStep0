@@ -18,12 +18,27 @@ object Common extends Serializable {
 
     case class anAccount(accountKey: Long, accountId: String, accountName: String)
 
-    case class CleanString(s: String) {
-      val value: String = functions.cleanString(s)
+    /* ********************************************************* */
+    // Business of CleanString
+    // TODO: move this to a saner location
+    trait Wrapper[T]
+
+    trait StringWrapper extends Wrapper[String] {
+      val value: String
     }
 
-    implicit def cleanString2String(cs: CleanString) = cs.value
+    trait CleanString extends StringWrapper
+    object CleanString {
+      def apply(s:String): CleanString = { CleanStringImpl(s) }
+      private case class CleanStringImpl(value: String) extends CleanString
+    }
+
+    // make it easy to go from "more general type" (String) to "more specific type" (CleanString).
+    // Hard the other way around.
     implicit def string2CleanString(s: String) = CleanString(s)
+
+    // End of CleanString
+    /* ********************************************************* */
   }
 
   object constants extends Serializable {
