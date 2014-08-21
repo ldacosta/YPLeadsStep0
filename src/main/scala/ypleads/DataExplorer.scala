@@ -140,6 +140,8 @@ class DataExplorer(sc: SparkContext) extends Serializable {
     val writableResults = headDirQueriesAndNames.map { case (headAndDir, listOfQueriesAndNames) =>
       val (queriesByName, queriesEMPTY, queriesNONE) =
         listOfQueriesAndNames.foldLeft((0:Long, 0:Long, 0:Long)) { case ((byName, empty, none), queryAndName) =>
+          // FIXME: here I am losing information about the source type (boolean), because I am going to a "wider" type (int).
+          // A best way to do it would be: [T] (map)=> [Bool] => (filter)=> [True's] (length)=> Int
           (byName + { if (isCloseEnough(queryAndName.query.value, queryAndName.name.value)) 1 else 0 },
             empty + { if (queryAndName.query.value.trim.isEmpty) 1 else 0 },
             none + { if (queryAndName.query.value.trim.toUpperCase == "NONE") 1 else 0 })
