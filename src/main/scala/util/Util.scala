@@ -15,6 +15,17 @@ object Util extends Serializable {
   object Date {
     def allDaysStartingIn(aDate: DateTime): Stream[DateTime] = Stream.cons(aDate, allDaysStartingIn(aDate.plusDays(1)))
 
+    /**
+     * Returns all days that are "mentioned" in a given range.
+     *
+     * @example Days between (yesterday and today is 2, since 2 days are mentioned.
+     *
+     * @param fromDate Beginning of range
+     * @param toDate Ending of range
+     * @return a Stream with all days mentioned.
+     * @note The hour/minutes/seconds mentioned in the dates returned are not especially curated. In other words,
+     *       they *do not* correspond to either the beginning of the range or the ending of it.
+     */
     def getAllDays(fromDate: DateTime, toDate: DateTime): Stream[DateTime] = {
       Date.allDaysStartingIn(fromDate.withHourOfDay(1).withMinuteOfHour(0).withSecondOfMinute(0)).
         takeWhile(_.isBefore(toDate.withHourOfDay(1).withMinuteOfHour(0).withSecondOfMinute(1)))
