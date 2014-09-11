@@ -17,6 +17,8 @@ object Dependencies {
   }
 
   object Libraries {
+    // date-time classes:
+    val dateTime = "com.github.nscala-time" %% "nscala-time" % "1.2.0" // https://github.com/nscala-time/nscala-time
     // val scaldingCore = "com.twitter"                %%  "scalding-core"       % V.scalding
     val hadoopCore   = "org.apache.hadoop"          % "hadoop-core"           % V.hadoop       % "provided"
     // Add additional libraries from mvnrepository.com (SBT syntax) here...
