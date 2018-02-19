@@ -1,9 +1,101 @@
 package util
 
 import org.scalatest.FlatSpec
+import util.Util.SQL.PROD_DB_CONNECTION_PARAMS
 import util.Util._
 
 class BaseTest extends FlatSpec {
+
+  "A SQL connection" should "be obtained from a valid Server/DB" in {
+    val validSQLConnOpt = PROD_DB_CONNECTION_PARAMS.getConnectionOpt
+    withClue(s"Connection URL: ==> ${PROD_DB_CONNECTION_PARAMS.connectionURL} <==") { assert(validSQLConnOpt.isDefined) }
+    try {
+      info(" =======================================> HELLO <=======================================")
+      using (validSQLConnOpt.get.createStatement()) { stmt =>
+        using (stmt.executeQuery("SELECT * FROM account LIMIT 10")) { rs =>
+          while (rs.next()) {
+            rs.getString("account_id")
+          }
+        }
+      }
+    }
+    catch {
+      case e: Exception => withClue(s"Connection URL: ${PROD_DB_CONNECTION_PARAMS.connectionURL}; msg = ${e.getMessage}") { assert(false) }
+    }
+    finally {
+      validSQLConnOpt.get.close()
+    }
+  }
+
+  it should "NOT be obtained if parameters are moronic" in {
+    val inValidSQLConnOpt = SQL.getConnectionOpt(server = "lalala", portNumber = 8080, dbName = "", username = "", passwd = "")
+    assert(!inValidSQLConnOpt.isDefined)
+  }
+
+  "A ResultSet from a valid DB connection" should "be non-empty and iterable" in {
+    val validSQLConnOpt = PROD_DB_CONNECTION_PARAMS.getConnectionOpt
+    withClue(s"Connection URL: ${PROD_DB_CONNECTION_PARAMS.connectionURL}") { assert(validSQLConnOpt.isDefined) }
+    try {
+      using (validSQLConnOpt.get.createStatement()) { stmt =>
+        using (stmt.executeQuery("SELECT * FROM account LIMIT 10")) { rs =>
+          while (rs.next()) {
+            rs.getString("account_id")
+          }
+        }
+      }
+    }
+    catch {
+      case e: Exception => withClue(s"Connection URL: ${PROD_DB_CONNECTION_PARAMS.connectionURL}; msg = ${e.getMessage}") { assert(false) }
+    }
+    finally {
+      validSQLConnOpt.get.close()
+    }
+  }
+
+  it should "be convertible into a Stream" in {
+    val validSQLConnOpt = PROD_DB_CONNECTION_PARAMS.getConnectionOpt
+    withClue(s"Connection URL: ${PROD_DB_CONNECTION_PARAMS.connectionURL}") { assert(validSQLConnOpt.isDefined) }
+    try {
+      using (validSQLConnOpt.get.createStatement()) { stmt =>
+        using (stmt.executeQuery("SELECT * FROM account LIMIT 10")) { rs =>
+          val s = SQL.rs2Stream(rs)
+          val streamOfStrings = s.map(rs => rs.getString("account_id"))
+          assert(streamOfStrings.size == 10)
+          val l = streamOfStrings.foldLeft(List[String]()) { (l, s) => s :: l }
+          assert(l.size == streamOfStrings.size)
+        }
+      }
+    }
+    catch {
+      case e: Exception => withClue(s"Connection URL: ${PROD_DB_CONNECTION_PARAMS.connectionURL}; msg = ${e.getMessage}") { assert(false) }
+    }
+    finally {
+      validSQLConnOpt.get.close()
+    }
+  }
+
+  it should "be convertible into a List and further usable" in {
+    val validSQLConnOpt = PROD_DB_CONNECTION_PARAMS.getConnectionOpt
+    withClue(s"Connection URL: ${PROD_DB_CONNECTION_PARAMS.connectionURL}") { assert(validSQLConnOpt.isDefined) }
+    try {
+      val l1 =
+        using (validSQLConnOpt.get.createStatement()) { stmt =>
+          using (stmt.executeQuery("SELECT * FROM account LIMIT 10")) { rs =>
+            SQL.rs2Stream(rs).toList
+          }
+        }
+      val streamOfStrings = l1.map(rs => rs.getString("account_id"))
+      assert(streamOfStrings.size == 10)
+      val l = streamOfStrings.foldLeft(List[String]()) { (l, s) => s :: l }
+      assert(l.size == streamOfStrings.size)
+    }
+    catch {
+      case e: Exception => withClue(s"Connection URL: ${PROD_DB_CONNECTION_PARAMS.connectionURL}; msg = ${e.getMessage}") { assert(false) }
+    }
+    finally {
+      validSQLConnOpt.get.close()
+    }
+  }
 
   "Levenshtein distance on two identical strings" should "be 0" in {
     val s = "luis"

@@ -1,6 +1,7 @@
 package util
 
 import java.io.{PrintWriter, FileWriter}
+import java.sql.{DriverManager, Connection, ResultSet}
 
 import org.apache.spark.sql.SQLContext
 
@@ -11,6 +12,40 @@ object Util extends Serializable {
   import scala.language.implicitConversions
 
   implicit def bool2int(b:Boolean) = if (b) 1 else 0
+
+  object SQL {
+
+    object PROD_DB_CONNECTION_PARAMS {
+      val SERVER_NAME = "ibdevro.itops.ad.ypg.com"
+      val SERVER_PORT = 5029
+      val DB_NAME = "ypa_pp"
+      val DB_USERNAME = "ldcosta1"
+      val DB_PASSWD = "ldcosta1"
+      val connectionURL = getConnectionURL(server = SERVER_NAME, portNumber = SERVER_PORT, dbName = DB_NAME)
+      def getConnectionOpt = SQL.getConnectionOpt(server = SERVER_NAME, portNumber = SERVER_PORT, dbName = DB_NAME, username = DB_USERNAME, passwd = DB_PASSWD)
+    }
+
+    def rs2Stream(rs: ResultSet): Stream[ResultSet] =
+    {
+      new Iterator[ResultSet] { def hasNext = rs.next ;  def next = rs }.toStream
+    }
+
+    def getConnectionURL(server: String, portNumber: Int, dbName: String) = s"jdbc:mysql://${server}:${portNumber}/${dbName}"
+
+    def getConnectionOpt(server: String, portNumber: Int, dbName: String, username: String, passwd: String): Option[Connection] = {
+      val jdbcURL = getConnectionURL(server = server, portNumber = portNumber, dbName = dbName)
+      try {
+        Some(DriverManager.getConnection(jdbcURL, username, passwd))
+      }
+      catch {
+        case e: Exception =>
+          println(s"Failure connecting to ${jdbcURL}, user = ${username}, passwd = <provided by the user>. Do 'printStackTrace' if you need more details.")
+          // e.printStackTrace()
+          None
+      }
+    }
+
+  }
 
   /**
    *

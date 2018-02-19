@@ -16,6 +16,7 @@ object exampleBuild extends Build {
     .settings(buildSettings: _*)
     .settings(
       libraryDependencies ++= Seq(
+        Libraries.dateTime,
         Libraries.sparkCore,
         Libraries.sparkAssembly,
         Libraries.sparkAssembly2,
